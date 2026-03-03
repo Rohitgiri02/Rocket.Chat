@@ -1,4 +1,4 @@
-import type { IMessage, Serialized } from '@rocket.chat/core-typings';
+import type { IMessage, IRoom, ITeam, Serialized } from '@rocket.chat/core-typings';
 import type { OperationParams, OperationResult } from '@rocket.chat/rest-typings';
 
 import type { StreamerCallbackArgs } from '../../types/streams';
@@ -15,7 +15,13 @@ export interface APILegacy {
 	};
 
 	rooms: {
-		info(args: { roomName: string } | { roomId: string }): Promise<Serialized<OperationResult<'GET', '/v1/rooms.info'>>>;
+		info(args: { roomName: string } | { roomId: string }): Promise<
+			Serialized<{
+				room: IRoom | undefined;
+				team: Pick<ITeam, 'name' | 'roomId' | 'type' | '_id'> | undefined;
+				parent: Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'> | undefined;
+			}>
+		>;
 		join(rid: string): Promise<Serialized<OperationResult<'POST', '/v1/channels.join'>>>;
 		load(rid: string, lastUpdate: Date): Promise<Serialized<OperationResult<'GET', '/v1/chat.syncMessages'>>>;
 		leave(rid: string): Promise<Serialized<OperationResult<'POST', '/v1/channels.leave'>>>;

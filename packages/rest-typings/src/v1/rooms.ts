@@ -1,4 +1,4 @@
-import type { IMessage, IRoom, IUser, RoomAdminFieldsType, IUpload, IE2EEMessage, ITeam, ISubscription } from '@rocket.chat/core-typings';
+import type { IMessage, IRoom, IUser, RoomAdminFieldsType, IUpload, IE2EEMessage, ISubscription } from '@rocket.chat/core-typings';
 
 import { ajv } from './Ajv';
 import type { PaginatedRequest } from '../helpers/PaginatedRequest';
@@ -732,14 +732,6 @@ export type RoomsEndpoints = {
 	'/v1/rooms.autocomplete.adminRooms': {
 		GET: (params: RoomsAutocompleteAdminRoomsPayload) => {
 			items: IRoom[];
-		};
-	};
-
-	'/v1/rooms.info': {
-		GET: (params: RoomsInfoProps) => {
-			room: IRoom | undefined;
-			parent?: Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'>;
-			team?: Pick<ITeam, 'name' | 'roomId' | 'type' | '_id'>;
 		};
 	};
 

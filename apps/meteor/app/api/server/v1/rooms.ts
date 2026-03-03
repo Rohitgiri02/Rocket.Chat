@@ -1,5 +1,5 @@
 import { FederationMatrix, MeteorError, Team } from '@rocket.chat/core-services';
-import type { IRoom, IUpload } from '@rocket.chat/core-typings';
+import type { IRoom, ITeam, IUpload } from '@rocket.chat/core-typings';
 import { isPrivateRoom, isPublicRoom } from '@rocket.chat/core-typings';
 import { Messages, Rooms, Users, Uploads, Subscriptions } from '@rocket.chat/models';
 import type { Notifications } from '@rocket.chat/rest-typings';
@@ -382,35 +382,6 @@ API.v1.addRoute(
 	},
 );
 
-API.v1.addRoute(
-	'rooms.info',
-	{ authRequired: true },
-	{
-		async get() {
-			const room = await findRoomByIdOrName({ params: this.queryParams });
-			const { fields } = await this.parseJsonQuery();
-
-			if (!room || !(await canAccessRoomAsync(room, { _id: this.userId }))) {
-				return API.v1.failure('not-allowed', 'Not Allowed');
-			}
-
-			const discussionParent =
-				room.prid &&
-				(await Rooms.findOneById<Pick<IRoom, 'name' | 'fname' | 't' | 'prid' | 'u'>>(room.prid, {
-					projection: { name: 1, fname: 1, t: 1, prid: 1, u: 1 },
-				}));
-			const { team, parentRoom } = await Team.getRoomInfo(room);
-			const parent = discussionParent || parentRoom;
-
-			return API.v1.success({
-				room: await Rooms.findOneByIdOrName(room._id, { projection: fields }),
-				...(team && { team }),
-				...(parent && { parent }),
-			});
-		},
-	},
-);
-
 /*
 TO-DO: 8.0.0 should use the ajv validation
 which will change this endpoint's
@@ -421,7 +392,6 @@ API.v1.addRoute(
 	{ authRequired: true /* , validateParams: isRoomsCreateDiscussionProps */ },
 	{
 		async post() {
-			// eslint-disable-next-line @typescript-eslint/naming-convention
 			const { prid, pmid, reply, t_name, users, encrypted, topic } = this.bodyParams;
 			if (!prid) {
 				return API.v1.failure('Body parameter "prid" is required.');
@@ -1048,6 +1018,66 @@ export const roomEndpoints = API.v1
 		},
 	)
 	.get(
+		'rooms.info',
+		{
+			authRequired: true,
+			query: ajv.compile<{
+				roomId?: string;
+				roomName?: string;
+			}>({
+				type: 'object',
+				properties: {
+					roomId: { type: 'string' },
+					roomName: { type: 'string' },
+					fields: { type: 'string' },
+				},
+				additionalProperties: true,
+				anyOf: [{ required: ['roomId'] }, { required: ['roomName'] }],
+			}),
+			response: {
+				200: ajv.compile<{
+					room: IRoom | undefined;
+					team: Pick<ITeam, 'name' | 'roomId' | 'type' | '_id'> | undefined;
+					parent: Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'> | undefined;
+				}>({
+					type: 'object',
+					properties: {
+						success: { type: 'boolean', enum: [true] },
+						room: { type: 'object' },
+						team: { type: 'object' },
+						parent: { type: 'object' },
+					},
+					required: ['success'],
+					additionalProperties: false,
+				}),
+				400: validateBadRequestErrorResponse,
+				401: validateUnauthorizedErrorResponse,
+			},
+		},
+		async function action() {
+			const room = await findRoomByIdOrName({ params: this.queryParams });
+			const { fields } = await this.parseJsonQuery();
+
+			if (!room || !(await canAccessRoomAsync(room, { _id: this.userId }))) {
+				return API.v1.failure('not-allowed', 'Not Allowed');
+			}
+
+			const discussionParent = room.prid
+				? ((await Rooms.findOneById<Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'>>(room.prid, {
+						projection: { _id: 1, name: 1, fname: 1, t: 1, prid: 1, u: 1 },
+					})) ?? undefined)
+				: undefined;
+			const { team, parentRoom } = await Team.getRoomInfo(room);
+			const parent = (discussionParent ?? parentRoom) as Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'> | undefined;
+
+			return API.v1.success({
+				room: (await Rooms.findOneByIdOrName(room._id, { projection: fields })) ?? undefined,
+				team: team as Pick<ITeam, 'name' | 'roomId' | 'type' | '_id'> | undefined,
+				parent,
+			});
+		},
+	)
+	.get(
 		'rooms.adminRooms.privateRooms',
 		{
 			authRequired: true,
@@ -1211,9 +1241,7 @@ export const roomEndpoints = API.v1
 		},
 	);
 
-type RoomEndpoints = ExtractRoutesFromAPI<typeof roomEndpoints> &
-	ExtractRoutesFromAPI<typeof roomEndpoints> &
-	ExtractRoutesFromAPI<typeof roomDeleteEndpoint>;
+type RoomEndpoints = ExtractRoutesFromAPI<typeof roomEndpoints> & ExtractRoutesFromAPI<typeof roomDeleteEndpoint>;
 
 declare module '@rocket.chat/rest-typings' {
 	// eslint-disable-next-line @typescript-eslint/naming-convention, @typescript-eslint/no-empty-interface

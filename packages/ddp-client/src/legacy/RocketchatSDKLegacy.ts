@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-this-alias */
 
 import { RestClient } from '@rocket.chat/api-client';
-import type { IMessage, Serialized } from '@rocket.chat/core-typings';
+import type { IMessage, IRoom, ITeam, Serialized } from '@rocket.chat/core-typings';
 import { Emitter } from '@rocket.chat/emitter';
 import type { OperationParams, OperationResult } from '@rocket.chat/rest-typings';
 
@@ -100,8 +100,14 @@ export class RocketchatSdkLegacyImpl extends DDPSDK implements RocketchatSDKLega
 					| {
 							roomName: string;
 					  },
-			): Promise<Serialized<OperationResult<'GET', '/v1/rooms.info'>>> => {
-				return self.rest.get('/v1/rooms.info', args);
+			): Promise<
+				Serialized<{
+					room: IRoom | undefined;
+					team: Pick<ITeam, 'name' | 'roomId' | 'type' | '_id'> | undefined;
+					parent: Pick<IRoom, '_id' | 'name' | 'fname' | 't' | 'prid' | 'u'> | undefined;
+				}>
+			> => {
+				return (self.rest as any).get('/v1/rooms.info', args);
 			},
 			join: (rid: string): Promise<Serialized<OperationResult<'POST', '/v1/channels.join'>>> => {
 				return self.rest.post('/v1/channels.join', { roomId: rid });
